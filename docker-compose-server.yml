@@ -1,0 +1,20 @@
+version: "2.2"
+
+services:
+  server:
+    image: shilazi/serverstatus-rust:latest
+    container_name: statserver
+    command:
+    - server
+    ports:
+    - "80:80"
+    - "443:443"
+    - "8080:8080"
+    - "9394:9394"
+    volumes:
+    # - ./web:/svrstat/html
+    - ./logs:/svrstat/logs
+    - ./rstat:/svrstat/rstat
+    - ./config.toml:/svrstat/rstat/config.toml
+    # - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    restart: always

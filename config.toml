@@ -48,7 +48,7 @@ group_gc = 30
 # 修正一键部署，请自行替换 ssr.rs 为你的域名,
 # server_url = "https://ssr.rs/report"
 # stat_client 默认安装的路径
-workspace = "/opt/ServerStatus"
+workspace = "/svrstat/rstat"
 
 # 不开启告警，可忽略后面配置，或者删除不需的通知方式
 # 告警间隔默认为30s
@@ -81,7 +81,7 @@ custom_tpl = """
 ## 可选 单纯记录 event 到日志文件，调试自定义告警使用
 [log]
 enabled = false
-log_dir = "/opt/ServerStatus/logs"
+log_dir = "/svrstat/logs"
 tpl = """{% set obj = dict(event=event, host=host, ip_info=ip_info, sys_info=sys_info) %} {{ obj | tojson}}"""
 
 ###################### log end ##########################

@@ -1,0 +1,25 @@
+version: "2.2"
+
+services:
+  client:
+    image: shilazi/serverstatus-rust:latest
+    container_name: statclient
+    command:
+    - pyclient
+    network_mode: host
+    environment:
+      SSR_ADDR: "http://127.0.0.1:8080/report"
+      SSR_USER: "h1"
+      SSR_PASS: "p1"
+      SSR_INTERVAL: "1"
+      SSR_DISABLE_TUPD: "false"
+      SSR_DISABLE_PING: "false"
+      SSR_DISABLE_EXTRA: "false"
+      SSR_IFACE: "eth0"
+      PROCFS_PATH: "/rootfs/proc"
+      SYSFS_PATH: "/rootfs/sys"
+    volumes:
+    - ./vnstat:/svrstat/vnstat
+    - /proc:/rootfs/proc:ro
+    - /sys:/rootfs/sys:ro
+    restart: always

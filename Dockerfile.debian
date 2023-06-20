@@ -1,0 +1,74 @@
+FROM rust:bookworm as builder
+
+ADD web/ web/
+ADD common/ common/
+ADD client/ client/
+ADD server/ server/
+ADD Cargo.lock Cargo.toml config.toml ./
+
+RUN cargo build --release
+
+# ---------- 8< ----------
+
+FROM python:3.10-slim-bookworm
+
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+ENV SSR_ADDR=http://127.0.0.1:8080/report
+ENV SSR_USER=h1
+ENV SSR_PASS=p1
+ENV SSR_VNSTAT=true
+ENV SSR_VNSTAT_MR=1
+ENV SSR_INTERVAL=1
+ENV SSR_DISABLE_TUPD=false
+ENV SSR_DISABLE_PING=false
+ENV SSR_DISABLE_EXTRA=false
+ENV SSR_IFACE=
+
+ENV PROCFS_PATH=/rootfs/proc
+ENV SYSFS_PATH=/rootfs/sys
+ENV TZ=Asia/Shanghai
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY --from=docker.io/shilazi/vnstat:latest /usr/bin/vnstat /usr/bin/vnstat
+COPY --from=docker.io/shilazi/vnstat:latest /usr/sbin/vnstatd /usr/sbin/vnstatd
+COPY --from=docker.io/shilazi/vnstat:latest /etc/vnstat.conf /etc/vnstat.conf
+
+RUN set -x \
+    && mkdir -p /svrstat/logs \
+    && mkdir -p /svrstat/rstat \
+    && mkdir -p /svrstat/vnstat \
+    && python3 -m venv /opt/venv \
+    && pip3 install psutil requests py-cpuinfo \
+    && apt update \
+    && apt install --no-install-recommends \
+        -y -q ca-certificates tzdata nginx libsqlite3-0 \
+    && sed -ri \
+        -e 's@^;(DatabaseDir ).*@\1"/svrstat/vnstat"@' \
+        -e 's@^;(UseLogging ).*@\11@' \
+        -e 's@^;(LogFile ).*@\1"/dev/stdout"@' \
+        /etc/vnstat.conf \
+    && rm -f /etc/nginx/sites-enabled/default \
+    && ln -snf /dev/stdout /var/log/nginx/access.log \
+    && ln -snf /dev/stderr /var/log/nginx/error.log \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /svrstat
+
+ADD web/ html/
+ADD config.toml rstat/config.toml
+
+ADD nginx.conf /etc/nginx/conf.d/default.conf
+ADD entrypoint.sh /entrypoint.sh
+
+COPY --from=builder /client/stat_client.py stat_client.py
+COPY --from=builder /target/release/stat_server stat_server
+COPY --from=builder /target/release/stat_client stat_client
+
+WORKDIR /svrstat/rstat
+EXPOSE 80 443 8080 9394
+
+VOLUME ["/svrstat/rstat", "/svrstat/html", "/etc/nginx/conf.d", "/svrstat/logs", "/svrstat/vnstat", "/rootfs/proc", "/rootfs/sys"]
+
+ENTRYPOINT ["/entrypoint.sh"]
