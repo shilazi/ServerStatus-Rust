@@ -27,8 +27,15 @@ const TIMEOUT_MS: u64 = 1000;
 static IPV4_ADDR: &str = "ipv4.google.com:80";
 static IPV6_ADDR: &str = "ipv6.google.com:80";
 
+// https://programming-idioms.org/idiom/205/get-an-environment-variable/3700/rust
+// https://www.sitepoint.com/rust-global-variables/
+// https://github.com/giampaolo/psutil/issues/1845
+lazy_static!(
+    static ref PROCFS_PATH: String = std::env::var("PROCFS_PATH").unwrap_or("/proc".to_string());
+);
+
 pub fn get_uptime() -> u64 {
-    fs::read_to_string("/proc/uptime")
+    fs::read_to_string(format!("{}{}", *PROCFS_PATH, "/uptime"))
         .map(|contents| {
             if let Some(s) = contents.split('.').next() {
                 return s.parse::<u64>().unwrap_or(0);
@@ -39,7 +46,7 @@ pub fn get_uptime() -> u64 {
 }
 
 pub fn get_loadavg() -> (f64, f64, f64) {
-    fs::read_to_string("/proc/loadavg")
+    fs::read_to_string(format!("{}{}", *PROCFS_PATH, "/loadavg"))
         .map(|contents| {
             let vec = contents.split_whitespace().collect::<Vec<_>>();
             // dbg!(&vec);
@@ -61,7 +68,7 @@ lazy_static! {
     static ref MEMORY_REGEX_RE: Regex = Regex::new(MEMORY_REGEX).unwrap();
 }
 pub fn get_memory() -> (u64, u64, u64, u64) {
-    let file = File::open("/proc/meminfo").unwrap();
+    let file = File::open(format!("{}{}", *PROCFS_PATH, "/meminfo")).unwrap();
     let buf_reader = BufReader::new(file);
     let mut res_dict = HashMap::new();
     for line in buf_reader.lines() {
@@ -108,7 +115,7 @@ lazy_static! {
 }
 pub fn get_sys_traffic(args: &Args) -> (u64, u64) {
     let (mut network_in, mut network_out) = (0, 0);
-    let file = File::open("/proc/net/dev").unwrap();
+    let file = File::open(format!("{}{}", *PROCFS_PATH, "/net/dev")).unwrap();
     let buf_reader = BufReader::new(file);
     for line in buf_reader.lines() {
         let l = line.unwrap();
@@ -173,7 +180,7 @@ lazy_static! {
 pub fn start_net_speed_collect_t(args: &Args) {
     let args_1 = args.clone();
     thread::spawn(move || loop {
-        let _ = File::open("/proc/net/dev").map(|file| {
+        let _ = File::open(format!("{}{}", *PROCFS_PATH, "/net/dev")).map(|file| {
             let buf_reader = BufReader::new(file);
             let (mut avgrx, mut avgtx) = (0, 0);
             for line in buf_reader.lines() {
@@ -217,7 +224,7 @@ lazy_static! {
 pub fn start_cpu_percent_collect_t() {
     let mut pre_cpu: Vec<u64> = vec![0, 0, 0, 0];
     thread::spawn(move || loop {
-        let _ = File::open("/proc/stat").map(|file| {
+        let _ = File::open(format!("{}{}", *PROCFS_PATH, "/stat")).map(|file| {
             let mut buf_reader = BufReader::new(file);
             let mut buf = String::new();
             let _ = buf_reader.read_line(&mut buf).map(|_| {

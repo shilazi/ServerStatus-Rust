@@ -39,6 +39,9 @@ INTERVAL = 1
 G_IP_INFO = None
 G_SYS_INFO = None
 
+# https://github.com/giampaolo/psutil/issues/1845
+psutil.PROCFS_PATH = os.getenv("PROCFS_PATH", "/proc")
+
 
 def get_uptime():
     # uptime = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
@@ -54,7 +57,7 @@ def get_memory():
 
 def get_hdd():
     valid_fs = set(["ext4", "ext3", "ext2", "reiserfs", "jfs", "btrfs",
-                   "fuseblk", "zfs", "simfs", "ntfs", "fat32", "exfat", "xfs"])
+                    "fuseblk", "zfs", "simfs", "ntfs", "fat32", "exfat", "xfs"])
     disks, size, used = dict(), 0, 0
     for disk in psutil.disk_partitions():
         if disk.device not in disks and disk.fstype.lower() in valid_fs:
@@ -175,7 +178,7 @@ def _ping_thread(target, mark):
     host, port = target.split(":")
 
     ip = host
-    if host.count(':') < 1:     # if not plain ipv6 address, means ipv4 address or hostname
+    if host.count(':') < 1:  # if not plain ipv6 address, means ipv4 address or hostname
         try:
             if PROBE_PROTOCOL_PREFER == 'ipv4':
                 ip = socket.getaddrinfo(host, None, socket.AF_INET)[0][4][0]
@@ -547,10 +550,55 @@ def main():
 
     (options, args) = parser.parse_args()
 
-    def parse_iface_list(ifaces): return list(
-        filter(lambda s: len(s), map(str.strip, ifaces.split(","))))
+    def parse_iface_list(ifaces):
+        return list(
+            filter(lambda s: len(s), map(str.strip, ifaces.split(","))))
+
+    if os.getenv("SSR_IFACE"):
+        options.iface = os.getenv("SSR_IFACE")
+    if os.getenv("SSR_EXCLUDE_IFACE"):
+        options.exclude_iface = os.getenv("SSR_EXCLUDE_IFACE")
+
     options.iface = parse_iface_list(options.iface)
     options.exclude_iface = parse_iface_list(options.exclude_iface)
+
+    if os.getenv("SSR_ADDR"):
+        options.addr = os.getenv("SSR_ADDR")
+    if os.getenv("SSR_USER"):
+        options.username = os.getenv("SSR_USER")
+    if os.getenv("SSR_GID"):
+        options.gid = os.getenv("SSR_GID")
+    if os.getenv("SSR_ALIAS"):
+        options.alias = os.getenv("SSR_ALIAS")
+    if os.getenv("SSR_PASS"):
+        options.password = os.getenv("SSR_PASS")
+    if os.getenv("SSR_VNSTAT"):
+        options.vnstat = eval(os.getenv("SSR_VNSTAT").capitalize())
+    if os.getenv("SSR_VNSTAT_MR") and os.getenv("SSR_VNSTAT_MR").isdigit():
+        options.vnstat_mr = int(os.getenv("SSR_VNSTAT_MR"))
+    if os.getenv("SSR_DISABLE_EXTRA"):
+        options.disable_extra = eval(os.getenv("SSR_DISABLE_EXTRA").capitalize())
+    if os.getenv("SSR_DISABLE_PING"):
+        options.disable_ping = eval(os.getenv("SSR_DISABLE_PING").capitalize())
+    if os.getenv("SSR_DISABLE_TUPD"):
+        options.disable_tupd = eval(os.getenv("SSR_DISABLE_TUPD").capitalize())
+    if os.getenv("SSR_CM"):
+        options.cm = os.getenv("SSR_CM")
+    if os.getenv("SSR_CT"):
+        options.ct = os.getenv("SSR_CT")
+    if os.getenv("SSR_CU"):
+        options.cu = os.getenv("SSR_CU")
+    if os.getenv("SSR_WEIGHT") and os.getenv("SSR_WEIGHT").isdigit():
+        options.weight = int(os.getenv("SSR_WEIGHT"))
+    if os.getenv("SSR_DISABLE_NOTIFY"):
+        options.disable_notify = eval(os.getenv("SSR_DISABLE_NOTIFY").capitalize())
+    if os.getenv("SSR_TYPE"):
+        options.type = os.getenv("SSR_TYPE")
+    if os.getenv("SSR_LOCATION"):
+        options.location = os.getenv("SSR_LOCATION")
+    if os.getenv("SSR_INTERVAL") and os.getenv("SSR_INTERVAL").isdigit():
+        options.interval = int(os.getenv("SSR_INTERVAL"))
+
     print(json.dumps(options.__dict__, indent=2))
 
     if options.vnstat:
