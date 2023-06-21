@@ -86,16 +86,24 @@ def get_sys_traffic(options):
             net_out += v[0]
     return net_in, net_out
 
-
+'''https://github.com/zdz/ServerStatus-Rust/blob/master/client/src/vnstat.rs#L73-L183'''
 def get_vnstat_traffic(options):
+    if 1 < options.vnstat_mr <= 28:
+        mr = True
+        cmd = "/usr/bin/vnstat --json d 32"
+    elif options.vnstat_mr == 1:
+        mr = False
+        cmd = "/usr/bin/vnstat --json m"
+    else:
+        raise SystemExit('invalid vnstat month rotate {}'.format(options.vnstat_mr))
+
     now = datetime.now()
-    vnstat_res = subprocess.check_output(
-        "/usr/bin/vnstat --json m", shell=True)
+    vnstat_res = subprocess.check_output(cmd, shell=True)
     json_dict = json.loads(vnstat_res)
     network_in, network_out, m_network_in, m_network_out = (0, 0, 0, 0)
     json_version = json_dict.get("jsonversion", "2")
     for iface in json_dict.get("interfaces", []):
-        name, bandwidth_factor, mouth_field = "invalid", 1, "month"
+        name, bandwidth_factor, mouth_field, day_field = "invalid", 1, "month", "day"
         if json_version == "1":
             name = iface["id"]
             bandwidth_factor = 1024
@@ -111,11 +119,37 @@ def get_vnstat_traffic(options):
         network_in += traffic["total"]["rx"] * bandwidth_factor
         # print(name, json.dumps(iface["traffic"], indent=2))
 
-        for month in traffic.get(mouth_field, []):
-            if now.year != month["date"]["year"] or month["date"]["month"] != now.month:
-                continue
-            m_network_out += month["tx"] * bandwidth_factor
-            m_network_in += month["rx"] * bandwidth_factor
+        if mr:
+            '''month rotate, v2 only'''
+            if json_version == "1":
+                raise SystemExit('The parameter --json d 31 is not supported in v1.15')
+            elif now.day >= options.vnstat_mr:
+                for day in traffic.get(day_field, []):
+                    if now.year != day["date"]["year"] or day["date"]["month"] != now.month:
+                        continue
+                    m_network_out += day["tx"] * bandwidth_factor
+                    m_network_in += day["rx"] * bandwidth_factor
+            else:
+                pre_year = now.year
+                pre_month = now.month - 1
+                if pre_month == 0:
+                    pre_month = 12
+                    pre_year -= 1
+                for day in traffic.get(day_field, []):
+                    if day["date"]["year"] == pre_year and day["date"]["month"] == pre_month \
+                            and day["date"]["day"] >= options.vnstat_mr:
+                        m_network_out += day["tx"] * bandwidth_factor
+                        m_network_in += day["rx"] * bandwidth_factor
+                    if day["date"]["year"] == now.year and day["date"]["month"] == now.month \
+                            and day["date"]["day"] < options.vnstat_mr:
+                        m_network_out += day["tx"] * bandwidth_factor
+                        m_network_in += day["rx"] * bandwidth_factor
+        else:
+            for month in traffic.get(mouth_field, []):
+                if now.year != month["date"]["year"] or month["date"]["month"] != now.month:
+                    continue
+                m_network_out += month["tx"] * bandwidth_factor
+                m_network_in += month["rx"] * bandwidth_factor
 
     return (network_in, network_out, m_network_in, m_network_out)
 
